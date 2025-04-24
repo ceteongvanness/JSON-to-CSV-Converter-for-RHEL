@@ -4,7 +4,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
+    <!-- Comment out the ApplicationIcon if present -->
+    <!-- <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon> -->
   </PropertyGroup>
   
   <ItemGroup>
@@ -14,7 +15,10 @@
     <PackageReference Include="System.Text.Json" Version="6.0.7" />
   </ItemGroup>
   
+  <!-- Comment out resource sections if present -->
+  <!--
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
+  -->
 </Project>

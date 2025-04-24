@@ -1,415 +1,106 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text.Json;
-using System.Threading.Tasks;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
-using System.Text;
-using Avalonia.Platform.Storage;
-using System.Text.Json.Serialization;
-
-namespace JsonToCsvConverter
-{
-    // Main application window
-    public partial class MainWindow : Window
-    {
-        private string _selectedJsonFilePath;
-        private AppState _appState;
-        private readonly string _appDataPath;
-
-        public MainWindow()
-        {
-            InitializeComponent();
-            
-            // Set up app data directory
-            _appDataPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "JsonToCsvConverter"
-            );
-            
-            // Create directory if it doesn't exist
-            if (!Directory.Exists(_appDataPath))
-            {
-                Directory.CreateDirectory(_appDataPath);
-            }
-            
-            // Load app state
-            LoadAppState();
-            
-            // Initialize UI
-            UpdateHistoryList();
-        }
-
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
-
-        // Load the application state from disk
-        private void LoadAppState()
-        {
-            string statePath = Path.Combine(_appDataPath, "appState.json");
-            
-            if (File.Exists(statePath))
-            {
-                try
-                {
-                    string json = File.ReadAllText(statePath);
-                    _appState = JsonSerializer.Deserialize<AppState>(json);
-                }
-                catch (Exception ex)
-                {
-                    // If loading fails, create a new state
-                    Console.WriteLine($"Failed to load app state: {ex.Message}");
-                    _appState = new AppState { ConversionHistory = new List<ConversionRecord>() };
-                }
-            }
-            else
-            {
-                // Create new state if file doesn't exist
-                _appState = new AppState { ConversionHistory = new List<ConversionRecord>() };
-            }
-        }
-
-        // Save the application state to disk
-        private void SaveAppState()
-        {
-            string statePath = Path.Combine(_appDataPath, "appState.json");
-            
-            try
-            {
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string json = JsonSerializer.Serialize(_appState, options);
-                File.WriteAllText(statePath, json);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to save app state: {ex.Message}");
-            }
-        }
-
-        // Update the history list in the UI
-        private void UpdateHistoryList()
-        {
-            var historyList = this.FindControl<ListBox>("HistoryListBox");
-            
-            if (historyList != null)
-            {
-                var items = new List<string>();
-                
-                foreach (var record in _appState.ConversionHistory)
-                {
-                    string fileName = Path.GetFileName(record.InputPath);
-                    string date = record.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
-                    items.Add($"{date} - {fileName}");
-                }
-                
-                historyList.Items = items;
-            }
-        }
-
-        // Handle Select JSON File button click
-        private async void OnSelectFileClick(object sender, RoutedEventArgs e)
-        {
-            var fileDialog = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select JSON File",
-                AllowMultiple = false,
-                FileTypeFilter = new[] { new FilePickerFileType("JSON Files") { Patterns = new[] { "*.json" } } }
-            });
-
-            if (fileDialog.Count > 0)
-            {
-                _selectedJsonFilePath = fileDialog[0].Path.LocalPath;
-                
-                var filePathTextBlock = this.FindControl<TextBlock>("SelectedFilePath");
-                if (filePathTextBlock != null)
-                {
-                    filePathTextBlock.Text = _selectedJsonFilePath;
-                }
-                
-                var fileInfoPanel = this.FindControl<Panel>("FileInfoPanel");
-                if (fileInfoPanel != null)
-                {
-                    fileInfoPanel.IsVisible = true;
-                }
-            }
-        }
-
-        // Handle Convert to CSV button click
-        private async void OnConvertClick(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(_selectedJsonFilePath))
-            {
-                return;
-            }
-            
-            try
-            {
-                // Read the JSON file
-                string jsonContent = File.ReadAllText(_selectedJsonFilePath);
-                JsonDocument jsonDocument = JsonDocument.Parse(jsonContent);
-                
-                // Convert to CSV
-                string csvContent = ConvertJsonToCsv(jsonDocument);
-                
-                // Show save dialog
-                var fileDialog = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-                {
-                    Title = "Save CSV File",
-                    SuggestedFileName = Path.GetFileNameWithoutExtension(_selectedJsonFilePath) + ".csv",
-                    FileTypeChoices = new[] { new FilePickerFileType("CSV Files") { Patterns = new[] { "*.csv" } } }
-                });
-
-                if (fileDialog != null)
-                {
-                    string outputPath = fileDialog.Path.LocalPath;
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+        x:Class="JsonToCsvConverter.MainWindow"
+        Title="JSON to CSV Converter"
+        Width="900" Height="700">
+    
+    <Window.Styles>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#2ecc71"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="#3498db"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Panel.success">
+            <Setter Property="Background" Value="#d5f5e3"/>
+        </Style>
+        <Style Selector="Panel.error">
+            <Setter Property="Background" Value="#f8d7da"/>
+        </Style>
+        <Style Selector="TextBox.codeArea">
+            <Setter Property="FontFamily" Value="Consolas, Menlo, Monaco, 'Courier New', monospace"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="TextWrapping" Value="NoWrap"/>
+        </Style>
+    </Window.Styles>
+    
+    <Grid RowDefinitions="Auto,*" Margin="20">
+        <TextBlock Grid.Row="0" Text="JSON to CSV Converter" FontSize="24" FontWeight="Bold" 
+                   HorizontalAlignment="Center" Margin="0,0,0,20"/>
+        
+        <TabControl Grid.Row="1" Name="MainTabControl">
+            <TabItem Header="Converter" Name="ConverterTab">
+                <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10">
+                    <!-- Changed: Removed Padding from Button, using only Margin -->
+                    <Button Grid.Row="0" Content="Select JSON File" Click="OnSelectFileClick" 
+                            Classes="secondary" Margin="10,10,10,10"/>
                     
-                    // Save the CSV file
-                    File.WriteAllText(outputPath, csvContent);
+                    <Panel Grid.Row="1" Name="FileInfoPanel" IsVisible="False" Margin="0,10,0,10"
+                           Background="#f9f9f9">
+                        <!-- Changed: Moved Padding to a Border or container -->
+                        <Border Padding="15">
+                            <StackPanel>
+                                <TextBlock Text="Selected file:" FontWeight="Medium"/>
+                                <TextBlock Name="SelectedFilePath" Margin="0,5,0,10"/>
+                                <!-- Changed: Removed Padding from Button, using only Margin -->
+                                <Button Content="Convert to CSV" Classes="primary" Click="OnConvertClick" 
+                                        Margin="10" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                    </Panel>
                     
-                    // Create a conversion record
-                    var record = new ConversionRecord
-                    {
-                        Timestamp = DateTime.Now,
-                        InputPath = _selectedJsonFilePath,
-                        OutputPath = outputPath,
-                        JsonData = jsonContent,
-                        CsvData = csvContent
-                    };
+                    <Panel Grid.Row="2" Name="StatusPanel" IsVisible="False" Margin="0,10,0,10">
+                        <!-- Changed: Moved Padding to a Border, removed CornerRadius -->
+                        <Border Padding="15">
+                            <TextBlock Name="StatusMessage" TextWrapping="Wrap"/>
+                        </Border>
+                    </Panel>
+                </Grid>
+            </TabItem>
+            
+            <TabItem Header="History" Name="HistoryTab">
+                <Grid RowDefinitions="Auto,*" Margin="10">
+                    <TextBlock Grid.Row="0" Text="Conversion History" FontSize="18" FontWeight="SemiBold" 
+                               Margin="0,0,0,10"/>
                     
-                    // Add to history
-                    _appState.ConversionHistory.Add(record);
-                    
-                    // Save app state
-                    SaveAppState();
-                    
-                    // Update UI
-                    UpdateHistoryList();
-                    
-                    var statusPanel = this.FindControl<Panel>("StatusPanel");
-                    var statusMessage = this.FindControl<TextBlock>("StatusMessage");
-                    
-                    if (statusPanel != null && statusMessage != null)
-                    {
-                        statusMessage.Text = "Conversion completed successfully!";
-                        statusPanel.Classes.Remove("error");
-                        statusPanel.Classes.Add("success");
-                        statusPanel.IsVisible = true;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                var statusPanel = this.FindControl<Panel>("StatusPanel");
-                var statusMessage = this.FindControl<TextBlock>("StatusMessage");
-                
-                if (statusPanel != null && statusMessage != null)
-                {
-                    statusMessage.Text = $"Error during conversion: {ex.Message}";
-                    statusPanel.Classes.Remove("success");
-                    statusPanel.Classes.Add("error");
-                    statusPanel.IsVisible = true;
-                }
-            }
-        }
-
-        // Handle selection change in history list
-        private void OnHistorySelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            var historyList = sender as ListBox;
+                    <ListBox Grid.Row="1" Name="HistoryListBox" SelectionChanged="OnHistorySelectionChanged"
+                             Background="#f9f9f9" Margin="0,5,0,0"/>
+                </Grid>
+            </TabItem>
             
-            if (historyList != null && historyList.SelectedIndex >= 0 && historyList.SelectedIndex < _appState.ConversionHistory.Count)
-            {
-                var record = _appState.ConversionHistory[historyList.SelectedIndex];
-                
-                var detailsTab = this.FindControl<TabItem>("DetailsTab");
-                if (detailsTab != null)
-                {
-                    // Switch to details tab
-                    var tabControl = this.FindControl<TabControl>("MainTabControl");
-                    if (tabControl != null)
-                    {
-                        tabControl.SelectedIndex = 2; // Details tab
-                    }
-                    
-                    // Update details content
-                    var detailsTimestamp = this.FindControl<TextBlock>("DetailsTimestamp");
-                    var detailsInputPath = this.FindControl<TextBlock>("DetailsInputPath");
-                    var detailsOutputPath = this.FindControl<TextBlock>("DetailsOutputPath");
-                    var detailsJsonData = this.FindControl<TextBox>("DetailsJsonData");
-                    var detailsCsvData = this.FindControl<TextBox>("DetailsCsvData");
-                    
-                    if (detailsTimestamp != null) detailsTimestamp.Text = record.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
-                    if (detailsInputPath != null) detailsInputPath.Text = record.InputPath;
-                    if (detailsOutputPath != null) detailsOutputPath.Text = record.OutputPath;
-                    if (detailsJsonData != null) detailsJsonData.Text = record.JsonData;
-                    if (detailsCsvData != null) detailsCsvData.Text = record.CsvData;
-                }
-            }
-        }
-
-        // Convert JSON to CSV
-        private string ConvertJsonToCsv(JsonDocument jsonDocument)
-        {
-            // Check if the JSON is an array
-            if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                return ConvertJsonArrayToCsv(jsonDocument.RootElement);
-            }
-            // Check if the JSON is an object with an array property
-            else if (jsonDocument.RootElement.ValueKind == JsonValueKind.Object)
-            {
-                // Try to find an array property
-                foreach (var property in jsonDocument.RootElement.EnumerateObject())
-                {
-                    if (property.Value.ValueKind == JsonValueKind.Array)
-                    {
-                        return ConvertJsonArrayToCsv(property.Value);
-                    }
-                }
-                
-                // If no array property found, convert the object directly
-                return ConvertJsonObjectToCsv(jsonDocument.RootElement);
-            }
-            
-            throw new InvalidOperationException("JSON structure not supported for CSV conversion");
-        }
-
-        // Convert a JSON array to CSV
-        private string ConvertJsonArrayToCsv(JsonElement jsonArray)
-        {
-            if (jsonArray.GetArrayLength() == 0)
-            {
-                return string.Empty;
-            }
-            
-            // Extract all possible headers from all objects
-            var headers = new HashSet<string>();
-            foreach (var element in jsonArray.EnumerateArray())
-            {
-                if (element.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (var property in element.EnumerateObject())
-                    {
-                        headers.Add(property.Name);
-                    }
-                }
-            }
-            
-            // Sort headers for consistent output
-            var sortedHeaders = headers.OrderBy(h => h).ToList();
-            
-            // Build CSV
-            var csvBuilder = new StringBuilder();
-            
-            // Add header row
-            csvBuilder.AppendLine(string.Join(",", sortedHeaders.Select(EscapeCsvField)));
-            
-            // Add data rows
-            foreach (var element in jsonArray.EnumerateArray())
-            {
-                if (element.ValueKind == JsonValueKind.Object)
-                {
-                    var values = new List<string>();
-                    
-                    foreach (var header in sortedHeaders)
-                    {
-                        if (element.TryGetProperty(header, out var property))
-                        {
-                            values.Add(GetJsonElementValue(property));
-                        }
-                        else
-                        {
-                            values.Add(string.Empty);
-                        }
-                    }
-                    
-                    csvBuilder.AppendLine(string.Join(",", values.Select(EscapeCsvField)));
-                }
-            }
-            
-            return csvBuilder.ToString();
-        }
-
-        // Convert a JSON object to CSV (single row)
-        private string ConvertJsonObjectToCsv(JsonElement jsonObject)
-        {
-            var headers = new List<string>();
-            var values = new List<string>();
-            
-            foreach (var property in jsonObject.EnumerateObject())
-            {
-                headers.Add(property.Name);
-                values.Add(GetJsonElementValue(property.Value));
-            }
-            
-            var csvBuilder = new StringBuilder();
-            csvBuilder.AppendLine(string.Join(",", headers.Select(EscapeCsvField)));
-            csvBuilder.AppendLine(string.Join(",", values.Select(EscapeCsvField)));
-            
-            return csvBuilder.ToString();
-        }
-
-        // Get string value from a JsonElement based on its type
-        private string GetJsonElementValue(JsonElement element)
-        {
-            switch (element.ValueKind)
-            {
-                case JsonValueKind.String:
-                    return element.GetString() ?? string.Empty;
-                case JsonValueKind.Number:
-                    return element.GetRawText();
-                case JsonValueKind.True:
-                    return "true";
-                case JsonValueKind.False:
-                    return "false";
-                case JsonValueKind.Null:
-                    return string.Empty;
-                case JsonValueKind.Object:
-                case JsonValueKind.Array:
-                    return JsonSerializer.Serialize(element);
-                default:
-                    return string.Empty;
-            }
-        }
-
-        // Escape CSV field according to RFC 4180
-        private string EscapeCsvField(string field)
-        {
-            if (string.IsNullOrEmpty(field))
-            {
-                return string.Empty;
-            }
-            
-            bool needsQuoting = field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r');
-            
-            if (needsQuoting)
-            {
-                // Double up any quotes and wrap in quotes
-                return $"\"{field.Replace("\"", "\"\"")}\"";
-            }
-            
-            return field;
-        }
-    }
-
-    // Classes for data storage
-    public class AppState
-    {
-        public List<ConversionRecord> ConversionHistory { get; set; }
-    }
-
-    public class ConversionRecord
-    {
-        public DateTime Timestamp { get; set; }
-        public string InputPath { get; set; }
-        public string OutputPath { get; set; }
-        public string JsonData { get; set; }
-        public string CsvData { get; set; }
-    }
-}
+            <TabItem Header="Details" Name="DetailsTab">
+                <ScrollViewer>
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*" ColumnDefinitions="Auto,*" Margin="10">
+                        <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Conversion Details" 
+                                   FontSize="18" FontWeight="SemiBold" Margin="0,0,0,15"/>
+                        
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Date: " FontWeight="Medium" Margin="0,5,10,5"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Name="DetailsTimestamp" Margin="0,5,0,5"/>
+                        
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Input File: " FontWeight="Medium" Margin="0,5,10,5"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Name="DetailsInputPath" Margin="0,5,0,5" TextWrapping="Wrap"/>
+                        
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Output File: " FontWeight="Medium" Margin="0,5,10,5"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" Name="DetailsOutputPath" Margin="0,5,0,5" TextWrapping="Wrap"/>
+                        
+                        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Text="JSON Data:" 
+                                   FontWeight="Medium" Margin="0,15,0,5"/>
+                        <TextBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Name="DetailsJsonData" 
+                                 Classes="codeArea" Height="200" Margin="0,5,0,15"/>
+                        
+                        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Text="CSV Data:" 
+                                   FontWeight="Medium" Margin="0,5,0,5"/>
+                        <TextBox Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" Name="DetailsCsvData" 
+                                 Classes="codeArea" Height="200" Margin="0,5,0,0"/>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>
