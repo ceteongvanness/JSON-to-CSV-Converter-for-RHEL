@@ -22,11 +22,17 @@
         <Style Selector="Panel.error">
             <Setter Property="Background" Value="#f8d7da"/>
         </Style>
+        <Style Selector="Panel.info">
+            <Setter Property="Background" Value="#d1ecf1"/>
+        </Style>
         <Style Selector="TextBox.codeArea">
             <Setter Property="FontFamily" Value="Consolas, Menlo, Monaco, 'Courier New', monospace"/>
             <Setter Property="IsReadOnly" Value="True"/>
             <Setter Property="AcceptsReturn" Value="True"/>
             <Setter Property="TextWrapping" Value="NoWrap"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="MinHeight" Value="200"/>
         </Style>
     </Window.Styles>
     
@@ -37,18 +43,15 @@
         <TabControl Grid.Row="1" Name="MainTabControl">
             <TabItem Header="Converter" Name="ConverterTab">
                 <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10">
-                    <!-- Changed: Removed Padding from Button, using only Margin -->
                     <Button Grid.Row="0" Content="Select JSON File" Click="OnSelectFileClick" 
                             Classes="secondary" Margin="10,10,10,10"/>
                     
                     <Panel Grid.Row="1" Name="FileInfoPanel" IsVisible="False" Margin="0,10,0,10"
                            Background="#f9f9f9">
-                        <!-- Changed: Moved Padding to a Border or container -->
                         <Border Padding="15">
                             <StackPanel>
                                 <TextBlock Text="Selected file:" FontWeight="Medium"/>
                                 <TextBlock Name="SelectedFilePath" Margin="0,5,0,10"/>
-                                <!-- Changed: Removed Padding from Button, using only Margin -->
                                 <Button Content="Convert to CSV" Classes="primary" Click="OnConvertClick" 
                                         Margin="10" HorizontalAlignment="Left"/>
                             </StackPanel>
@@ -56,7 +59,6 @@
                     </Panel>
                     
                     <Panel Grid.Row="2" Name="StatusPanel" IsVisible="False" Margin="0,10,0,10">
-                        <!-- Changed: Moved Padding to a Border, removed CornerRadius -->
                         <Border Padding="15">
                             <TextBlock Name="StatusMessage" TextWrapping="Wrap"/>
                         </Border>
@@ -92,14 +94,51 @@
                         <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Text="JSON Data:" 
                                    FontWeight="Medium" Margin="0,15,0,5"/>
                         <TextBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Name="DetailsJsonData" 
-                                 Classes="codeArea" Height="200" Margin="0,5,0,15"/>
+                                 Classes="codeArea" Height="250" Margin="0,5,0,15"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
                         
                         <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Text="CSV Data:" 
                                    FontWeight="Medium" Margin="0,5,0,5"/>
                         <TextBox Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" Name="DetailsCsvData" 
-                                 Classes="codeArea" Height="200" Margin="0,5,0,0"/>
+                                 Classes="codeArea" Height="250" Margin="0,5,0,0"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
                     </Grid>
                 </ScrollViewer>
+            </TabItem>
+            
+            <TabItem Header="Run Test" Name="RunTestTab">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" Margin="10">
+                    <TextBlock Grid.Row="0" Text="Run Automation Test" FontSize="18" FontWeight="SemiBold" 
+                              Margin="0,0,0,15"/>
+                    
+                    <StackPanel Grid.Row="1" Spacing="10">
+                        <TextBlock Text="SUT IP Address:" FontWeight="Medium"/>
+                        <TextBox Name="SutIpTextBox" Text="Enter SUT IP Address" Margin="0,0,0,10"/>
+                        
+                        <TextBlock Text="Egg Drive Server IP:" FontWeight="Medium"/>
+                        <TextBox Name="EggDriveIpTextBox" Text="Enter Egg Drive Server IP Address" Margin="0,0,0,10"/>
+                        
+                        <TextBlock Text="Test Case Filter:" FontWeight="Medium"/>
+                        <TextBox Name="TestFilterTextBox" Text="Enter test case filter (e.g., F03_0125_01)" Margin="0,0,0,10"/>
+                    </StackPanel>
+                    
+                    <Button Content="Run Test" Click="OnRunTestClick"
+                            Classes="primary" Margin="0,10,0,10" HorizontalAlignment="Left"/>
+                    
+                    <Panel Grid.Row="3" Name="TestStatusPanel" IsVisible="False" Margin="0,10,0,10">
+                        <Border Padding="15">
+                            <TextBlock Name="TestStatusMessage" TextWrapping="Wrap"/>
+                        </Border>
+                    </Panel>
+                    
+                    <StackPanel Grid.Row="4" IsVisible="False" Name="TestResultPanel" Spacing="5">
+                        <TextBlock Text="Test completed. Convert result to CSV?" FontWeight="Medium"/>
+                        <Button Content="Import Results to Converter" Click="OnImportResultsClick"
+                                Classes="secondary" Margin="0,10,0,0" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Grid>
             </TabItem>
         </TabControl>
     </Grid>
