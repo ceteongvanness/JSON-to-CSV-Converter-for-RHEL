@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Diagnostics;
 
 namespace JsonToCsvConverter
 {
@@ -19,6 +20,8 @@ namespace JsonToCsvConverter
         private string _selectedJsonFilePath;
         private AppState _appState;
         private readonly string _appDataPath;
+        private string _lastTestResultPath;
+        private bool _testRunning = false;
 
         public MainWindow()
         {
@@ -256,6 +259,168 @@ namespace JsonToCsvConverter
                     if (detailsCsvData != null) detailsCsvData.Text = record.CsvData;
                 }
             }
+        }
+
+        // Handle Run Test button click
+        private async void OnRunTestClick(object sender, RoutedEventArgs e)
+        {
+            if (_testRunning)
+            {
+                return;
+            }
+
+            _testRunning = true;
+            var statusPanel = this.FindControl<Panel>("TestStatusPanel");
+            var statusMessage = this.FindControl<TextBlock>("TestStatusMessage");
+            var resultPanel = this.FindControl<StackPanel>("TestResultPanel");
+            
+            if (statusPanel != null && statusMessage != null && resultPanel != null)
+            {
+                // Hide result panel
+                resultPanel.IsVisible = false;
+                
+                // Show running status
+                statusPanel.IsVisible = true;
+                statusMessage.Text = "Running test automation...";
+                statusPanel.Classes.Clear();
+                statusPanel.Classes.Add("info");
+                
+                try
+                {
+                    // Get parameters from text boxes
+                    var sutIp = this.FindControl<TextBox>("SutIpTextBox")?.Text ?? "146.208.63.182";
+                    var eggDriveIp = this.FindControl<TextBox>("EggDriveIpTextBox")?.Text ?? "10.66.59.118";
+                    var testFilter = this.FindControl<TextBox>("TestFilterTextBox")?.Text ?? "F03_0125_01";
+                    
+                    // Build command
+                    string command = $"python /home/keysight/repo/pwst_qa/Eggplant_Projects/TAF/Services/RunTestAutomation.py " +
+                                    $"--epf /usr/GNUstep/Local/Applications/Eggplant.app/runscript " +
+                                    $"--sut {sutIp} " +
+                                    $"--epfSuite C:\\repo\\pwst_qa\\Eggplant_Projects\\Test.suite " +
+                                    $"--test /home/keysight/repo/pwst_qa/TestCase " +
+                                    $"--script /home/keysight/repo/pwst_qa/Eggplant_Projects/Test.suite/ExecutionPlan " +
+                                    $"--eggDriveServer http://{eggDriveIp}:5400 " +
+                                    $"--result /home/keysight/repo/pwst_qa/Results " +
+                                    $"--apps ST64c " +
+                                    $"--filter {testFilter}";
+                    
+                    // Execute command
+                    var result = await RunCommandAsync(command);
+                    
+                    // Assume the latest JSON file is in the Results directory
+                    string resultsDir = "/home/keysight/repo/pwst_qa/Results";
+                    
+                    // Typically, you'd extract the actual path from the command output
+                    // But for now, let's assume it's in a predictable location based on the filter
+                    _lastTestResultPath = Path.Combine(resultsDir, $"{testFilter}.json");
+                    
+                    statusMessage.Text = "Test completed successfully!";
+                    statusPanel.Classes.Clear();
+                    statusPanel.Classes.Add("success");
+                    
+                    // Show result panel
+                    resultPanel.IsVisible = true;
+                }
+                catch (Exception ex)
+                {
+                    statusMessage.Text = $"Error running test: {ex.Message}";
+                    statusPanel.Classes.Clear();
+                    statusPanel.Classes.Add("error");
+                }
+                finally
+                {
+                    _testRunning = false;
+                }
+            }
+        }
+
+        // Handle Import Results button click
+        private void OnImportResultsClick(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_lastTestResultPath) || !File.Exists(_lastTestResultPath))
+            {
+                var statusPanel = this.FindControl<Panel>("TestStatusPanel");
+                var statusMessage = this.FindControl<TextBlock>("TestStatusMessage");
+                
+                if (statusPanel != null && statusMessage != null)
+                {
+                    statusMessage.Text = "Cannot find test result file.";
+                    statusPanel.Classes.Clear();
+                    statusPanel.Classes.Add("error");
+                }
+                return;
+            }
+            
+            // Set the selected file path
+            _selectedJsonFilePath = _lastTestResultPath;
+            
+            // Update UI in the Converter tab
+            var filePathTextBlock = this.FindControl<TextBlock>("SelectedFilePath");
+            var fileInfoPanel = this.FindControl<Panel>("FileInfoPanel");
+            
+            if (filePathTextBlock != null)
+            {
+                filePathTextBlock.Text = _selectedJsonFilePath;
+            }
+            
+            if (fileInfoPanel != null)
+            {
+                fileInfoPanel.IsVisible = true;
+            }
+            
+            // Switch to Converter tab
+            var tabControl = this.FindControl<TabControl>("MainTabControl");
+            if (tabControl != null)
+            {
+                tabControl.SelectedIndex = 0; // Converter tab
+            }
+        }
+
+        // Helper method to run command asynchronously
+        private async Task<string> RunCommandAsync(string command)
+        {
+            // For Windows
+            var processInfo = new ProcessStartInfo("cmd.exe", $"/c {command}")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = Environment.CurrentDirectory
+            };
+            
+            // For Linux, uncomment this and comment the Windows version above
+            /*
+            var processInfo = new ProcessStartInfo("/bin/bash", $"-c \"{command}\"")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = Environment.CurrentDirectory
+            };
+            */
+            
+            var process = new Process { StartInfo = processInfo };
+            
+            var output = new StringBuilder();
+            var error = new StringBuilder();
+            
+            process.OutputDataReceived += (sender, args) => output.AppendLine(args.Data);
+            process.ErrorDataReceived += (sender, args) => error.AppendLine(args.Data);
+            
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            
+            await process.WaitForExitAsync();
+            
+            if (process.ExitCode != 0)
+            {
+                throw new Exception($"Command failed with exit code {process.ExitCode}. Error: {error}");
+            }
+            
+            return output.ToString();
         }
 
         // Convert JSON to CSV
