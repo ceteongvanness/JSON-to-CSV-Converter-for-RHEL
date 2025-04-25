@@ -109,36 +109,43 @@
             </TabItem>
             
             <TabItem Header="Run Test" Name="RunTestTab">
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" Margin="10">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto" Margin="10">
                     <TextBlock Grid.Row="0" Text="Run Automation Test" FontSize="18" FontWeight="SemiBold" 
-                              Margin="0,0,0,15"/>
+                            Margin="0,0,0,15"/>
                     
-                    <StackPanel Grid.Row="1" Spacing="10">
+                    <StackPanel Grid.Row="1" Spacing="10" Margin="0,0,0,20">
                         <TextBlock Text="SUT IP Address:" FontWeight="Medium"/>
-                        <TextBox Name="SutIpTextBox" Text="Enter SUT IP Address" Margin="0,0,0,10"/>
+                        <TextBox Name="SutIpTextBox" Watermark="Enter SUT IP address" Margin="0,0,0,10"/>
                         
                         <TextBlock Text="Egg Drive Server IP:" FontWeight="Medium"/>
-                        <TextBox Name="EggDriveIpTextBox" Text="Enter Egg Drive Server IP Address" Margin="0,0,0,10"/>
+                        <TextBox Name="EggDriveIpTextBox" Watermark="Enter Egg Drive Server IP" Margin="0,0,0,10"/>
                         
                         <TextBlock Text="Test Case Filter:" FontWeight="Medium"/>
-                        <TextBox Name="TestFilterTextBox" Text="Enter test case filter (e.g., F03_0125_01)" Margin="0,0,0,10"/>
+                        <TextBox Name="TestFilterTextBox" Watermark="Enter test case filter (e.g., F03_0125_01)" Margin="0,0,0,10"/>
+                        
+                        <TextBlock Text="Output Format:" FontWeight="Medium" Margin="0,5,0,5"/>
+                        <StackPanel Orientation="Horizontal" Spacing="15">
+                            <RadioButton Name="JsonFormatRadio" Content="JSON" IsChecked="True" GroupName="OutputFormat"/>
+                            <RadioButton Name="CsvFormatRadio" Content="CSV" GroupName="OutputFormat"/>
+                        </StackPanel>
                     </StackPanel>
                     
                     <Button Grid.Row="2" Content="Run Test" Click="OnRunTestClick"
                             Classes="primary" Margin="0,10,0,10" HorizontalAlignment="Left"/>
                     
-                    <Panel Grid.Row="3" Name="TestStatusPanel" IsVisible="False" Margin="0,10,0,10">
-                        <Border Padding="15">
-                            <TextBlock Name="TestStatusMessage" TextWrapping="Wrap"/>
-                        </Border>
-                    </Panel>
-                    
-                    <StackPanel Grid.Row="1" IsVisible="False" Name="TestResultPanel" Spacing="5">
-                        <TextBlock Text="Test completed. Convert result to CSV?" FontWeight="Medium"/>
-                        <Button Content="Import Results to Converter" Click="OnImportResultsClick"
-                                Classes="secondary" Margin="0,10,0,0" HorizontalAlignment="Left"/>
-                    </StackPanel>
-                    
+                    <Grid Grid.Row="3" RowDefinitions="Auto,Auto">
+                        <Panel Grid.Row="0" Name="TestStatusPanel" IsVisible="False" Margin="0,10,0,10">
+                            <Border Padding="15">
+                                <TextBlock Name="TestStatusMessage" TextWrapping="Wrap"/>
+                            </Border>
+                        </Panel>
+                        
+                        <StackPanel Grid.Row="1" IsVisible="False" Name="TestResultPanel" Spacing="5">
+                            <TextBlock Text="Test completed. Would you like to view the results?" FontWeight="Medium"/>
+                            <Button Content="Import Results" Click="OnImportResultsClick"
+                                    Classes="secondary" Margin="0,10,0,0" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </TabItem>
         </TabControl>

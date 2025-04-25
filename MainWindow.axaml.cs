@@ -21,6 +21,7 @@ namespace JsonToCsvConverter
         private AppState _appState;
         private readonly string _appDataPath;
         private string _lastTestResultPath;
+        private string _lastOutputFormat;
         private bool _testRunning = false;
 
         public MainWindow()
@@ -288,9 +289,27 @@ namespace JsonToCsvConverter
                 try
                 {
                     // Get parameters from text boxes
-                    var sutIp = this.FindControl<TextBox>("SutIpTextBox")?.Text ?? "146.208.63.182";
-                    var eggDriveIp = this.FindControl<TextBox>("EggDriveIpTextBox")?.Text ?? "10.66.59.118";
-                    var testFilter = this.FindControl<TextBox>("TestFilterTextBox")?.Text ?? "F03_0125_01";
+                    var sutIpTextBox = this.FindControl<TextBox>("SutIpTextBox");
+                    var eggDriveIpTextBox = this.FindControl<TextBox>("EggDriveIpTextBox");
+                    var testFilterTextBox = this.FindControl<TextBox>("TestFilterTextBox");
+                    var jsonFormatRadio = this.FindControl<RadioButton>("JsonFormatRadio");
+
+                    // Check if any required field is empty
+                    if (string.IsNullOrWhiteSpace(sutIpTextBox?.Text) || 
+                        string.IsNullOrWhiteSpace(eggDriveIpTextBox?.Text) || 
+                        string.IsNullOrWhiteSpace(testFilterTextBox?.Text))
+                    {
+                        statusMessage.Text = "Please fill in all required fields.";
+                        statusPanel.Classes.Clear();
+                        statusPanel.Classes.Add("error");
+                        _testRunning = false;
+                        return;
+                    }
+
+                    var sutIp = sutIpTextBox.Text.Trim();
+                    var eggDriveIp = eggDriveIpTextBox.Text.Trim();
+                    var testFilter = testFilterTextBox.Text.Trim();
+                    var outputFormat = jsonFormatRadio?.IsChecked == true ? "json" : "csv";
                     
                     // Build command
                     string command = $"python /home/keysight/repo/pwst_qa/Eggplant_Projects/TAF/Services/RunTestAutomation.py " +
@@ -304,17 +323,25 @@ namespace JsonToCsvConverter
                                     $"--apps ST64c " +
                                     $"--filter {testFilter}";
                     
+                    // Add the report parameter if CSV format is selected
+                    if (outputFormat == "csv")
+                    {
+                        command += " --report";
+                    }
+                    
                     // Execute command
                     var result = await RunCommandAsync(command);
                     
-                    // Assume the latest JSON file is in the Results directory
-                    string resultsDir = "/home/keysight/repo/pwst_qa/Results";
+                    // Determine the file extension based on the format
+                    string fileExtension = outputFormat == "json" ? "json" : "csv";
                     
                     // Typically, you'd extract the actual path from the command output
                     // But for now, let's assume it's in a predictable location based on the filter
-                    _lastTestResultPath = Path.Combine(resultsDir, $"{testFilter}.json");
+                    string resultsDir = "/home/keysight/repo/pwst_qa/Results";
+                    _lastTestResultPath = Path.Combine(resultsDir, $"{testFilter}.{fileExtension}");
+                    _lastOutputFormat = outputFormat;
                     
-                    statusMessage.Text = "Test completed successfully!";
+                    statusMessage.Text = $"Test completed successfully! Results saved in {outputFormat.ToUpper()} format.";
                     statusPanel.Classes.Clear();
                     statusPanel.Classes.Add("success");
                     
@@ -351,21 +378,44 @@ namespace JsonToCsvConverter
                 return;
             }
             
-            // Set the selected file path
-            _selectedJsonFilePath = _lastTestResultPath;
-            
-            // Update UI in the Converter tab
-            var filePathTextBlock = this.FindControl<TextBlock>("SelectedFilePath");
-            var fileInfoPanel = this.FindControl<Panel>("FileInfoPanel");
-            
-            if (filePathTextBlock != null)
+            // If it's already a CSV, we might want to just open it directly
+            if (_lastOutputFormat == "csv")
             {
-                filePathTextBlock.Text = _selectedJsonFilePath;
+                // Option 1: Just import it to the converter for viewing
+                _selectedJsonFilePath = _lastTestResultPath;
+                
+                // Update UI in the Converter tab
+                var filePathTextBlock = this.FindControl<TextBlock>("SelectedFilePath");
+                var fileInfoPanel = this.FindControl<Panel>("FileInfoPanel");
+                
+                if (filePathTextBlock != null)
+                {
+                    filePathTextBlock.Text = _selectedJsonFilePath;
+                }
+                
+                if (fileInfoPanel != null)
+                {
+                    fileInfoPanel.IsVisible = true;
+                }
             }
-            
-            if (fileInfoPanel != null)
+            else // JSON format
             {
-                fileInfoPanel.IsVisible = true;
+                // Set the selected file path
+                _selectedJsonFilePath = _lastTestResultPath;
+                
+                // Update UI in the Converter tab
+                var filePathTextBlock = this.FindControl<TextBlock>("SelectedFilePath");
+                var fileInfoPanel = this.FindControl<Panel>("FileInfoPanel");
+                
+                if (filePathTextBlock != null)
+                {
+                    filePathTextBlock.Text = _selectedJsonFilePath;
+                }
+                
+                if (fileInfoPanel != null)
+                {
+                    fileInfoPanel.IsVisible = true;
+                }
             }
             
             // Switch to Converter tab
